@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrainSync - Estudos</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Styles -->
+    <style>
+        @import url('https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.10/dist/typography.min.css');
+        
+        body { font-family: 'Inter', sans-serif; }
+        
+        .markdown-body {
+            max-width: none;
+        }
+        .markdown-body h1 { font-size: 1.875rem; font-weight: 700; margin-bottom: 1rem; margin-top: 2rem; }
+        .markdown-body h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.75rem; margin-top: 1.5rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.5rem; }
+        .markdown-body p { line-height: 1.625; margin-bottom: 1rem; color: #334155; }
+        .markdown-body ul { list-style-type: disc; list-style-position: inside; margin-bottom: 1rem; }
+        .markdown-body ol { list-style-type: decimal; list-style-position: inside; margin-bottom: 1rem; }
+        .markdown-body strong { font-weight: 700; }
+        .markdown-body blockquote { border-left: 4px solid #e2e8f0; padding-left: 1rem; font-style: italic; color: #475569; margin: 1rem 0; }
+        .markdown-body code { background-color: #f1f5f9; padding: 0.25rem; border-radius: 0.25rem; color: #e11d48; font-family: monospace; font-size: 0.875rem; }
+        .markdown-body pre { background-color: #0f172a; color: #f8fafc; padding: 1rem; border-radius: 0.75rem; overflow-x: auto; margin: 1rem 0; font-family: monospace; font-size: 0.875rem; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react,typescript">
+        const { useState, useEffect, useRef } = React;
+        
+        // Mocking Lucide icons for the CDN version
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
+
+        // Markdown Renderer
+        const Markdown = ({ content }) => {
+            const html = marked.parse(content || '');
+            return <div dangerouslySetInnerHTML={{ __html: html }} />;
+        };
+
+        // --- COMPONENTES DE PÁGINA ---
+
+        const Dashboard = ({ stats, flashcards, onReview }) => {
+            const pending = flashcards.filter(f => !f.next_review || new Date(f.next_review) <= new Date());
+            const [currentCard, setCurrentCard] = useState(0);
+            const [showAnswer, setShowAnswer] = useState(false);
+
+            const handleRate = async (diff) => {
+                if (pending.length === 0) return;
+                await onReview(pending[currentCard].id, diff);
+                setShowAnswer(false);
+                if (currentCard < pending.length - 1) {
+                    setCurrentCard(currentCard + 1);
+                }
+            };
+
+            return (
+                <div className="p-8 max-w-5xl mx-auto">
+                    <h1 className="text-3xl font-bold text-slate-900 mb-8">Dashboard</h1>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <StatCard icon="book" label="Anotações" value={stats.notes} color="bg-indigo-50 text-indigo-600" />
+                        <StatCard icon="layers" label="Flashcards" value={stats.flashcards} color="bg-emerald-50 text-emerald-600" />
+                        <StatCard icon="refresh-cw" label="Revisões Pendentes" value={pending.length} color="bg-rose-50 text-rose-600" />
+                    </div>
+                    
+                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+                                <Icon name="zap" className="text-amber-500"/> Revisão Rápida
+                            </h2>
+                            {pending.length > 0 && (
+                                <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-full">
+                                    {currentCard + 1} de {pending.length}
+                                </span>
+                            )}
+                        </div>
+
+                        {pending.length > 0 ? (
+                            <div className="text-center max-w-2xl mx-auto">
+                                <div className="mb-8 min-h-[120px] flex items-center justify-center">
+                                    <h3 className="text-2xl font-bold text-slate-800">
+                                        {pending[currentCard].front}
+                                    </h3>
+                                </div>
+                                
+                                {showAnswer ? (
+                                    <div className="animate-in fade-in slide-in-from-bottom-4">
+                                        <div className="bg-slate-50 p-6 rounded-xl mb-8 border border-slate-100">
+                                            <p className="text-lg text-slate-600">{pending[currentCard].back}</p>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => handleRate('hard')} className="flex-1 py-3 bg-rose-50 text-rose-600 rounded-xl font-bold hover:bg-rose-100 transition-colors">Difícil</button>
+                                            <button onClick={() => handleRate('medium')} className="flex-1 py-3 bg-amber-50 text-amber-600 rounded-xl font-bold hover:bg-amber-100 transition-colors">Médio</button>
+                                            <button onClick={() => handleRate('easy')} className="flex-1 py-3 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-colors">Fácil</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={() => setShowAnswer(true)} 
+                                        className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                                    >
+                                        Mostrar Resposta
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 text-slate-400">
+                                <Icon name="check-circle-2" size={48} className="mx-auto mb-4 text-emerald-500 opacity-50"/>
+                                <p className="text-lg font-medium text-slate-600">Tudo em dia!</p>
+                                <p className="text-sm">Você revisou todos os flashcards pendentes.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const StatCard = ({ icon, label, value, color }) => (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
+                <div className={`p-4 rounded-xl ${color}`}><Icon name={icon} size={24} /></div>
+                <div>
+                    <p className="text-sm font-medium text-slate-500">{label}</p>
+                    <p className="text-2xl font-bold text-slate-900">{value}</p>
+                </div>
+            </div>
+        );
+
+        // --- PÁGINAS AUXILIARES ---
+
+        function DigitizationPage({ onSave, activeSubject: initialSubject, subjects }) {
+            const [img, setImg] = useState(null);
+            const [text, setText] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [processedData, setProcessedData] = useState(null);
+            const [selectedSubject, setSelectedSubject] = useState(initialSubject || (subjects.length > 0 ? subjects[0].id : ''));
+
+            const handleProcess = async () => {
+                if (!img) return;
+                setLoading(true);
+                try {
+                    const res = await fetch('/api/ai/digitize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image: img })
+                    });
+                    const data = await res.json();
+                    
+                    const extractedTitle = data.title || 'Digitalização ' + new Date().toLocaleDateString();
+                    const extractedContent = data.content || '';
+                    
+                    setText(extractedContent);
+                    setProcessedData({ title: extractedTitle, content: extractedContent });
+                } catch (e) {
+                    console.error(e);
+                    alert('Erro ao processar a imagem. Tente novamente.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleSave = async () => {
+                if (!processedData || !selectedSubject) {
+                    alert('Por favor, selecione uma matéria para salvar a digitalização.');
+                    return;
+                }
+                setLoading(true);
+                try {
+                    const saveRes = await fetch('/api/notes', { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify({ 
+                            subject_id: selectedSubject,
+                            title: processedData.title, 
+                            content: processedData.content 
+                        }) 
+                    });
+                    
+                    if (saveRes.ok) {
+                        const savedNote = await saveRes.json();
+                        
+                        await fetch('/api/files', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                note_id: savedNote.id,
+                                filename: `Digitalização - ${processedData.title}.jpg`,
+                                file_type: 'image',
+                                data: img
+                            })
+                        });
+
+                        alert('Digitalização e imagem salvas com sucesso!');
+                        onSave();
+                        setImg(null);
+                        setText('');
+                        setProcessedData(null);
+                    } else {
+                        throw new Error('Erro ao salvar no banco de dados');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Erro ao salvar no caderno.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="p-8 max-w-4xl mx-auto">
+                    <div className="flex justify-between items-center mb-8">
+                        <h1 className="text-3xl font-bold">Digitalização</h1>
+                        <div className="flex items-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                            <span className="text-xs font-bold text-slate-500 ml-2">Salvar em:</span>
+                            <select 
+                                value={selectedSubject} 
+                                onChange={e => setSelectedSubject(e.target.value)}
+                                className="text-sm border-none outline-none bg-transparent font-medium text-indigo-600 cursor-pointer"
+                            >
+                                <option value="" disabled>Escolha uma matéria</option>
+                                {subjects.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-[500px]">
+                        <div className="bg-white border-2 border-dashed rounded-2xl flex flex-col items-center justify-center relative overflow-hidden transition-all hover:border-indigo-300 group">
+                            {img ? (
+                                <>
+                                    <img src={img} className="absolute inset-0 w-full h-full object-contain p-4"/>
+                                    <button onClick={() => { setImg(null); setProcessedData(null); setText(''); }} className="absolute top-4 right-4 p-2 bg-rose-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
+                                        <Icon name="trash-2" size={16}/>
+                                    </button>
+                                </>
+                            ) : (
+                                <div className="text-center">
+                                    <Icon name="upload-cloud" size={48} className="text-slate-300 mx-auto mb-2"/>
+                                    <p className="text-slate-400 text-sm">Clique ou arraste imagem</p>
+                                </div>
+                            )}
+                            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                    setImg(ev.target?.result);
+                                    setProcessedData(null);
+                                    setText('');
+                                };
+                                if (e.target.files?.[0]) reader.readAsDataURL(e.target.files[0]);
+                            }}/>
+                        </div>
+                        <div className="bg-white border rounded-2xl p-6 flex flex-col shadow-sm">
+                            <div className="flex-1 overflow-y-auto prose prose-sm prose-slate mb-4">
+                                {text ? <Markdown content={text} /> : <p className="text-slate-300 italic">O texto extraído aparecerá aqui após o processamento...</p>}
+                            </div>
+                            
+                            {!processedData ? (
+                                <button 
+                                    onClick={handleProcess} 
+                                    disabled={!img || loading} 
+                                    className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-md"
+                                >
+                                    {loading ? <Icon name="loader-2" className="animate-spin"/> : <Icon name="brain-circuit" size={20}/>} 
+                                    {loading ? 'Processando...' : 'Processar Imagem'}
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={handleSave} 
+                                    disabled={loading || !selectedSubject} 
+                                    className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-md animate-in fade-in slide-in-from-bottom-2"
+                                >
+                                    {loading ? <Icon name="loader-2" className="animate-spin"/> : <Icon name="save" size={20}/>} 
+                                    {loading ? 'Salvando...' : 'Salvar no Caderno'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ChatPage({ notes, subjects, activeSubject, chatSessions, activeSessionId, setActiveSessionId, onRefresh, type = 'tutor' }) {
+            const [msgs, setMsgs] = useState([]);
+            const [input, setInput] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [image, setImage] = useState(null);
+            const [isAddingSession, setIsAddingSession] = useState(false);
+            const [newSessionTitle, setNewSessionTitle] = useState('');
+            const scrollRef = useRef(null);
+
+            useEffect(() => {
+                if (activeSessionId) {
+                    fetch(`/api/chat/messages/${activeSessionId}`)
+                        .then(res => res.json())
+                        .then(setMsgs);
+                } else {
+                    setMsgs([]);
+                }
+            }, [activeSessionId]);
+
+            useEffect(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                }
+            }, [msgs]);
+
+            const createSession = async () => {
+                const title = newSessionTitle.trim() || (type === 'exercise' ? 'Nova Questão' : 'Nova Conversa');
+                const res = await fetch('/api/chat/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, type })
+                });
+                const newSession = await res.json();
+                setNewSessionTitle('');
+                setIsAddingSession(false);
+                await onRefresh();
+                setActiveSessionId(newSession.id);
+                return newSession.id;
+            };
+
+            const deleteSession = async (id, e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!confirm('Excluir esta conversa permanentemente?')) return;
+                
+                try {
+                    await fetch(`/api/chat/sessions/${id}`, { method: 'DELETE' });
+                    if (activeSessionId === id) setActiveSessionId(null);
+                    await onRefresh();
+                } catch (err) {
+                    console.error(err);
+                    alert('Erro ao excluir conversa');
+                }
+            };
+
+            const send = async () => {
+                if (!input.trim() && !image) return;
+                
+                let sessionId = activeSessionId;
+                if (!sessionId) {
+                    sessionId = await createSession();
+                }
+
+                const userMsg = { 
+                    session_id: sessionId,
+                    role: 'user', 
+                    content: input,
+                    image_data: image
+                };
+                
+                setMsgs(prev => [...prev, userMsg]);
+                setInput('');
+                setImage(null);
+                setLoading(true);
+                
+                try {
+                    const context = notes.map(n => `Nota: ${n.title}\nConteúdo: ${n.content}`).join('\n\n');
+                    
+                    const parts = [];
+                    if (image) {
+                        parts.push({ inlineData: { data: image.split(',')[1], mimeType: 'image/jpeg' } });
+                    }
+                    parts.push({ text: input });
+
+                    const history = msgs.map(m => ({
+                        role: m.role,
+                        parts: [{ text: m.content }]
+                    }));
+
+                    const systemInstruction = type === 'exercise' 
+                        ? `Você é um professor 100% profissional e especialista em todas as matérias. Sua missão é ajudar o aluno a resolver exercícios e questões de forma clara, didática e SEM COMETER ERROS. Explique o passo a passo da resolução de forma técnica e precisa. Use este contexto do caderno do aluno se necessário:\n${context}`
+                        : `Você é um tutor do 2º ano. Responda de forma organizada usando Markdown. Use este contexto do caderno do aluno para responder perguntas sobre as matérias:\n${context}\n\nSempre priorize as informações do caderno se o aluno perguntar sobre algo que está lá.`;
+
+                    const res = await fetch('/api/ai/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: 'gemini-3-flash-preview',
+                            contents: [
+                                ...history,
+                                { role: 'user', parts }
+                            ],
+                            config: { systemInstruction }
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    const aiMsg = { 
+                        session_id: sessionId,
+                        role: 'model', 
+                        content: data.text || '' 
+                    };
+                    
+                    setMsgs(prev => [...prev, aiMsg]);
+                    
+                    const userRes = await fetch('/api/chat/messages', { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify(userMsg) 
+                    });
+                    const savedUserMsg = await userRes.json();
+
+                    const aiRes = await fetch('/api/chat/messages', { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify(aiMsg) 
+                    });
+                    const savedAiMsg = await aiRes.json();
+                    
+                    setMsgs(prev => {
+                        const newMsgs = [...prev];
+                        newMsgs[newMsgs.length - 2] = savedUserMsg;
+                        newMsgs[newMsgs.length - 1] = savedAiMsg;
+                        return newMsgs;
+                    });
+
+                    // Auto-title for exercises
+                    if (type === 'exercise') {
+                        const currentSession = chatSessions.find(s => s.id === sessionId);
+                        if (!currentSession || currentSession.title === 'Nova Questão') {
+                             // Optional: Implement auto-titling here
+                        }
+                    }
+
+                } catch (e) {
+                    console.error(e);
+                    alert('Erro ao enviar mensagem.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => setImage(ev.target?.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            return (
+                <div className="flex h-full bg-slate-50">
+                    <div className="w-64 bg-white border-r border-slate-200 flex flex-col">
+                        <div className="p-4 border-b flex flex-col gap-2">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-slate-700">{type === 'exercise' ? 'Exercícios' : 'Conversas'}</span>
+                                <button 
+                                    onClick={() => type === 'exercise' ? createSession() : setIsAddingSession(!isAddingSession)} 
+                                    className={`p-1 rounded transition-colors ${isAddingSession ? "bg-indigo-100 text-indigo-700" : "hover:bg-slate-100 text-indigo-600"}`}
+                                >
+                                    <Icon name="plus" size={18}/>
+                                </button>
+                            </div>
+                            {isAddingSession && type !== 'exercise' && (
+                                <div className="flex gap-1">
+                                    <input 
+                                        autoFocus
+                                        value={newSessionTitle}
+                                        onChange={e => setNewSessionTitle(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && createSession()}
+                                        placeholder="Título..."
+                                        className="flex-1 text-xs border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                    <button onClick={createSession} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                                        <Icon name="check-circle-2" size={16}/>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                            {chatSessions.map(s => (
+                                <div key={s.id} className="group relative">
+                                    <button 
+                                        onClick={() => setActiveSessionId(s.id)}
+                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all pr-10 ${activeSessionId === s.id ? "bg-indigo-50 text-indigo-700 font-bold" : "text-slate-600 hover:bg-slate-50"}`}
+                                    >
+                                        <div className="truncate">{s.title}</div>
+                                    </button>
+                                    <button 
+                                        onClick={(e) => deleteSession(s.id, e)}
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-rose-500 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all z-30 bg-white/80 rounded-md"
+                                    >
+                                        <Icon name="trash-2" size={14}/>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col relative">
+                        {!activeSessionId && msgs.length === 0 ? (
+                            <div className="flex-1 flex flex-col items-center justify-center text-slate-300 p-12 text-center">
+                                <Icon name={type === 'exercise' ? "brain-circuit" : "message-square"} size={64} className="mb-4 opacity-20"/>
+                                <p>{type === 'exercise' ? 'Envie uma foto ou digite seu exercício' : 'Selecione ou crie uma conversa'}</p>
+                            </div>
+                        ) : (
+                            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 px-16 space-y-6">
+                                {msgs.map((m, i) => (
+                                    <div key={i} className={`flex flex-col ${m.role === 'user' ? "items-end" : "items-start"}`}>
+                                        <div className={`p-5 rounded-2xl shadow-sm relative group transition-all ${m.role === 'user' ? "bg-indigo-600 text-white max-w-[80%] ml-12" : "bg-white text-slate-800 border border-slate-100 max-w-[92%] mr-12"}`}>
+                                            {m.image_data && <img src={m.image_data} className="max-w-xs rounded-lg mb-3 border border-indigo-400 shadow-sm" />}
+                                            <div className={m.role === 'user' ? "prose prose-invert prose-base font-medium leading-relaxed text-white" : "markdown-body prose prose-slate prose-lg leading-relaxed"}>
+                                                <Markdown content={m.content} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {loading && (
+                                    <div className="flex items-center gap-2 text-slate-400 text-sm animate-pulse">
+                                        <Icon name="bot" size={18}/>
+                                        <span>{type === 'exercise' ? 'Professor está resolvendo...' : 'Tutor está analisando...'}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="p-6 bg-white border-t">
+                            {image && (
+                                <div className="mb-3 relative inline-block">
+                                    <img src={image} className="h-20 w-20 object-cover rounded-lg border-2 border-indigo-500" />
+                                    <button onClick={() => setImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-md"><Icon name="x-circle" size={14}/></button>
+                                </div>
+                            )}
+                            <div className="flex gap-3 items-end">
+                                <div className="relative">
+                                    <input type="file" accept="image/*" className="hidden" id="chat-image" onChange={handleImageUpload} />
+                                    <label htmlFor="chat-image" className="p-3 bg-slate-100 text-slate-500 rounded-2xl hover:bg-slate-200 cursor-pointer transition-colors block"><Icon name="image" size={24}/></label>
+                                </div>
+                                <div className="flex-1 bg-slate-100 rounded-2xl px-4 py-2 flex items-end gap-2 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+                                    <textarea 
+                                        value={input} 
+                                        onChange={e => setInput(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                                        placeholder={type === 'exercise' ? "Envie sua questão..." : "Pergunte ao seu tutor..."}
+                                        className="flex-1 bg-transparent outline-none py-2 resize-none overflow-y-auto"
+                                        rows={1}
+                                        style={{ maxHeight: '200px' }}
+                                    />
+                                    <button onClick={send} disabled={loading || (!input.trim() && !image)} className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-md disabled:opacity-50"><Icon name="send" size={20}/></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function FlashcardsPage({ notes, flashcards, onRefresh }) {
+            const [loading, setLoading] = useState(false);
+            const [selectedNote, setSelectedNote] = useState('');
+
+            const generate = async () => {
+                if (!selectedNote) return;
+                setLoading(true);
+                try {
+                    const note = notes.find(n => n.id === selectedNote);
+                    const res = await fetch('/api/ai/flashcards', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: note.content })
+                    });
+                    const cards = await res.json();
+                    
+                    for (const c of cards) {
+                        await fetch('/api/flashcards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note_id: selectedNote, ...c }) });
+                    }
+                    onRefresh();
+                } catch (e) {
+                    console.error(e);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="p-8 max-w-5xl mx-auto">
+                    <div className="flex justify-between items-center mb-8">
+                        <h1 className="text-3xl font-bold">Flashcards</h1>
+                        <div className="flex gap-2">
+                            <select value={selectedNote} onChange={e => setSelectedNote(e.target.value)} className="border rounded-lg px-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="">Selecione uma nota</option>
+                                {notes.map(n => <option key={n.id} value={n.id}>{n.title}</option>)}
+                            </select>
+                            <button onClick={generate} disabled={loading} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                                {loading ? <Icon name="loader-2" className="animate-spin"/> : <Icon name="brain-circuit"/>} Gerar IA
+                            </button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {flashcards.map(f => (
+                            <div key={f.id} className="bg-white p-6 rounded-2xl border shadow-sm hover:shadow-md transition-shadow">
+                                <p className="text-xs font-bold text-indigo-500 mb-2 uppercase">Frente</p>
+                                <p className="font-bold text-slate-800 mb-4">{f.front}</p>
+                                <div className="border-t pt-4">
+                                    <p className="text-xs font-bold text-emerald-500 mb-2 uppercase">Verso</p>
+                                    <p className="text-slate-600">{f.back}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function ReviewPage({ flashcards, onRefresh }) {
+            const [current, setCurrent] = useState(0);
+            const [show, setShow] = useState(false);
+            const pending = flashcards.filter(f => !f.next_review || new Date(f.next_review) <= new Date());
+
+            const rate = async (diff) => {
+                const card = pending[current];
+                let days = diff === 'easy' ? 7 : diff === 'medium' ? 3 : 1;
+                
+                // Simple date add function since we don't have date-fns
+                const nextDate = new Date();
+                nextDate.setDate(nextDate.getDate() + days);
+
+                await fetch(`/api/flashcards/${card.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ difficulty: diff, next_review: nextDate.toISOString() })
+                });
+                setShow(false);
+                setCurrent(current + 1);
+                onRefresh();
+            };
+
+            if (pending.length === 0 || current >= pending.length) return <div className="h-full flex flex-col items-center justify-center text-slate-400"><Icon name="check-circle" size={64} className="text-emerald-500 mb-4"/><p className="text-xl font-bold">Tudo revisado!</p></div>;
+
+            return (
+                <div className="h-full flex flex-col items-center justify-center p-8">
+                    <div className="w-full max-w-xl bg-white rounded-3xl shadow-xl border p-12 text-center">
+                        <p className="text-xs font-bold text-indigo-500 mb-4 uppercase tracking-widest">Revisão {current + 1}/{pending.length}</p>
+                        <h2 className="text-3xl font-bold text-slate-800 mb-8">{pending[current].front}</h2>
+                        {show ? (
+                            <div className="animate-in fade-in slide-in-from-bottom-4">
+                                <p className="text-xl text-slate-600 mb-12">{pending[current].back}</p>
+                                <div className="flex gap-4">
+                                    <button onClick={() => rate('hard')} className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-2xl font-bold hover:bg-rose-100 transition-colors">Difícil</button>
+                                    <button onClick={() => rate('medium')} className="flex-1 py-4 bg-amber-50 text-amber-600 rounded-2xl font-bold hover:bg-amber-100 transition-colors">Médio</button>
+                                    <button onClick={() => rate('easy')} className="flex-1 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-bold hover:bg-emerald-100 transition-colors">Fácil</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button onClick={() => setShow(true)} className="px-8 py-4 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition-colors shadow-lg">Mostrar Resposta</button>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function ArchivePage({ files, onRefresh }) {
+            const [viewingFile, setViewingFile] = useState(null);
+
+            const deleteFile = async (id, e) => {
+                e.stopPropagation();
+                if (!confirm('Excluir este arquivo permanentemente?')) return;
+                await fetch(`/api/files/${id}`, { method: 'DELETE' });
+                onRefresh();
+            };
+
+            const downloadFile = (file, e) => {
+                e.stopPropagation();
+                const link = document.createElement('a');
+                link.href = file.data;
+                link.download = file.filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            return (
+                <div className="p-8 max-w-5xl mx-auto">
+                    <h1 className="text-3xl font-bold mb-8">Arquivo</h1>
+                    {files.length === 0 ? (
+                        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+                            <Icon name="upload-cloud" size={48} className="mx-auto text-slate-200 mb-4"/>
+                            <p className="text-slate-400">Nenhum arquivo digitalizado ainda.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {files.map(f => (
+                                <div 
+                                    key={f.id} 
+                                    onClick={() => f.file_type === 'image' && setViewingFile(f)}
+                                    className={`bg-white rounded-2xl border overflow-hidden hover:shadow-lg transition-all group cursor-pointer ${f.file_type === 'image' ? "flex flex-col" : "flex items-center p-4 gap-4"}`}
+                                >
+                                    {f.file_type === 'image' ? (
+                                        <>
+                                            <div className="h-40 bg-slate-50 relative overflow-hidden">
+                                                <img src={f.data} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt={f.filename} />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                                    <Icon name="eye" className="text-white opacity-0 group-hover:opacity-100 transition-opacity" size={32}/>
+                                                </div>
+                                            </div>
+                                            <div className="p-4 flex items-center justify-between gap-2">
+                                                <div className="truncate">
+                                                    <p className="font-bold truncate text-slate-800 text-sm">{f.filename}</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{new Date(f.created_at).toLocaleDateString()}</p>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <button onClick={(e) => downloadFile(f, e)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"><Icon name="download" size={18}/></button>
+                                                    <button onClick={(e) => deleteFile(f.id, e)} className="p-2 hover:bg-rose-50 rounded-lg text-slate-300 hover:text-rose-500 transition-colors"><Icon name="trash-2" size={18}/></button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                                                <Icon name="file" size={24}/>
+                                            </div>
+                                            <div className="flex-1 truncate">
+                                                <p className="font-bold truncate text-slate-800 text-sm">{f.filename}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{new Date(f.created_at).toLocaleDateString()}</p>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button onClick={(e) => downloadFile(f, e)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"><Icon name="download" size={18}/></button>
+                                                <button onClick={(e) => deleteFile(f.id, e)} className="p-2 hover:bg-rose-50 rounded-lg text-slate-300 hover:text-rose-500 transition-colors"><Icon name="trash-2" size={18}/></button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {viewingFile && (
+                        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 md:p-12" onClick={() => setViewingFile(null)}>
+                            <div className="relative max-w-5xl w-full h-full flex flex-col items-center justify-center" onClick={e => e.stopPropagation()}>
+                                <button 
+                                    onClick={() => setViewingFile(null)}
+                                    className="absolute -top-12 right-0 text-white hover:text-slate-300 transition-colors flex items-center gap-2 font-bold"
+                                >
+                                    <Icon name="x-circle" size={24}/> Fechar
+                                </button>
+                                <img src={viewingFile.data} className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" alt={viewingFile.filename} />
+                                <div className="mt-4 text-white text-center">
+                                    <p className="text-xl font-bold">{viewingFile.filename}</p>
+                                    <button onClick={(e) => downloadFile(viewingFile, e)} className="mt-4 px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full border border-white/20 transition-all flex items-center gap-2 mx-auto">
+                                        <Icon name="download" size={18}/> Baixar Original
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- APP PRINCIPAL ---
+
+        function App() {
+            const [view, setView] = useState('dashboard');
+            const [stats, setStats] = useState({ notes: 0, flashcards: 0, reviews: 0 });
+            const [subjects, setSubjects] = useState([]);
+            const [notes, setNotes] = useState([]);
+            const [activeNote, setActiveNote] = useState(null);
+            const [activeSubject, setActiveSubject] = useState(null);
+            const [saving, setSaving] = useState(false);
+            const [chatSessions, setChatSessions] = useState([]);
+            const [activeChatSession, setActiveChatSession] = useState(null);
+            const [exerciseSessions, setExerciseSessions] = useState([]);
+            const [activeExerciseSession, setActiveExerciseSession] = useState(null);
+            const [flashcards, setFlashcards] = useState([]);
+            const [files, setFiles] = useState([]);
+            const [isEditing, setIsEditing] = useState(false);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [isRenaming, setIsRenaming] = useState(false);
+            const [renameValue, setRenameValue] = useState('');
+            const [isAddingSubject, setIsAddingSubject] = useState(false);
+            const [newSubjectName, setNewSubjectName] = useState('');
+            const [isRefreshing, setIsRefreshing] = useState(false);
+            const [deleteModal, setDeleteModal] = useState(null);
+            const [config, setConfig] = useState({ GEMINI_API_KEY: '' });
+            
+            const timeoutRef = useRef(null);
+
+            useEffect(() => {
+                fetch('/api/config').then(r => r.json()).then(setConfig);
+                refreshData();
+            }, []);
+
+            const refreshData = async () => {
+                setIsRefreshing(true);
+                try {
+                    const [sRes, nRes, fRes, fcRes, csRes, esRes] = await Promise.all([
+                        fetch('/api/subjects'), fetch('/api/notes'), fetch('/api/files'), 
+                        fetch('/api/flashcards'), fetch('/api/chat/sessions?type=tutor'),
+                        fetch('/api/chat/sessions?type=exercise')
+                    ]);
+                    const [s, n, fl, fc, cs, es] = await Promise.all([
+                        sRes.json(), nRes.json(), fRes.json(), fcRes.json(), csRes.json(), esRes.json()
+                    ]);
+                    
+                    setSubjects(s);
+                    setNotes(n);
+                    setFiles(fl);
+                    setFlashcards(fc);
+                    setChatSessions(cs);
+                    setExerciseSessions(es);
+                    
+                    if (cs.length > 0 && !activeChatSession) setActiveChatSession(cs[0].id);
+                    if (es.length > 0 && !activeExerciseSession) setActiveExerciseSession(es[0].id);
+                    if (s.length > 0 && !activeSubject) setActiveSubject(s[0].id);
+
+                    const now = new Date();
+                    const pending = fc.filter(f => !f.next_review || new Date(f.next_review) <= now).length;
+                    setStats({ notes: n.length, flashcards: fc.length, reviews: pending });
+                } catch (e) {
+                    console.error('Erro ao carregar dados:', e);
+                } finally {
+                    setIsRefreshing(false);
+                }
+            };
+
+            const handleNoteChange = (field, value) => {
+                if (!activeNote) return;
+                const updated = { ...activeNote, [field]: value };
+                setActiveNote(updated);
+                setNotes(notes.map(n => n.id === updated.id ? updated : n));
+                
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                timeoutRef.current = setTimeout(async () => {
+                    setSaving(true);
+                    await fetch(`/api/notes/${updated.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updated)
+                    });
+                    setSaving(false);
+                    refreshData();
+                }, 1000);
+            };
+
+            const addNote = async () => {
+                if (!activeSubject) return alert('Selecione uma matéria primeiro.');
+                setSaving(true);
+                try {
+                    const res = await fetch('/api/notes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ subject_id: activeSubject, title: 'Nova Anotação', content: '' })
+                    });
+                    const newNote = await res.json();
+                    setNotes(prev => [newNote, ...prev]);
+                    setActiveNote(newNote);
+                    setIsEditing(true);
+                    await refreshData();
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const addSubject = async () => {
+                if (!newSubjectName.trim()) return;
+                setSaving(true);
+                try {
+                    const res = await fetch('/api/subjects', { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify({ name: newSubjectName, color: '#6366f1' }) 
+                    });
+                    const newSubject = await res.json();
+                    setSubjects(prev => [...prev, newSubject]);
+                    setActiveSubject(newSubject.id);
+                    setIsAddingSubject(false);
+                    setNewSubjectName('');
+                    await refreshData();
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const navLinks = [
+                { id: 'dashboard', icon: 'layout-dashboard', label: 'Dashboard' },
+                { id: 'notebook', icon: 'book', label: 'Caderno' },
+                { id: 'digitization', icon: 'upload-cloud', label: 'Digitalização' },
+                { id: 'flashcards', icon: 'layers', label: 'Flashcards' },
+                { id: 'review', icon: 'refresh-cw', label: 'Revisão' },
+                { id: 'chat', icon: 'message-square', label: 'Chat' },
+                { id: 'questions', icon: 'brain-circuit', label: 'Resolver Questões' },
+                { id: 'archive', icon: 'folder', label: 'Arquivo' },
+            ];
+
+            return (
+                <div className="flex h-screen bg-slate-50 overflow-hidden">
+                    {/* Sidebar */}
+                    <div className="w-64 bg-slate-900 text-white flex flex-col">
+                        <div className="p-6">
+                            <h1 className="text-2xl font-bold tracking-tight text-indigo-400">BrainSync</h1>
+                            <p className="text-slate-400 text-sm mt-1">2º Ano Ensino Médio</p>
+                        </div>
+                        <nav className="flex-1 px-4 space-y-2">
+                            {navLinks.map((link) => (
+                                <button
+                                    key={link.id}
+                                    onClick={() => setView(link.id)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${view === link.id ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+                                >
+                                    <Icon name={link.icon} size={20} />
+                                    <span className="font-medium">{link.label}</span>
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="p-4 text-xs text-slate-500 text-center border-t border-slate-800">
+                            Sincronizado na Nuvem
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <main className="flex-1 overflow-y-auto relative">
+                        {view === 'dashboard' && (
+                            <Dashboard 
+                                stats={stats} 
+                                flashcards={flashcards} 
+                                onReview={async (id, diff) => {
+                                    let days = diff === 'easy' ? 7 : diff === 'medium' ? 3 : 1;
+                                    const nextDate = new Date();
+                                    nextDate.setDate(nextDate.getDate() + days);
+                                    await fetch(`/api/flashcards/${id}`, {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ difficulty: diff, next_review: nextDate.toISOString() })
+                                    });
+                                    refreshData();
+                                }}
+                            />
+                        )}
+                        
+                        {view === 'notebook' && (
+                            <div className="flex h-full">
+                                <div className="w-64 bg-white border-r border-slate-200 flex flex-col">
+                                    <div className="p-4 border-b flex flex-col gap-2">
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-slate-700">Matérias</span>
+                                            <button onClick={() => setIsAddingSubject(!isAddingSubject)} className={`p-1 rounded transition-colors ${isAddingSubject ? "bg-indigo-100 text-indigo-700" : "hover:bg-slate-100 text-slate-400"}`}>
+                                                <Icon name="plus" size={18}/>
+                                            </button>
+                                        </div>
+                                        {isAddingSubject && (
+                                            <div className="flex gap-1">
+                                                <input autoFocus value={newSubjectName} onChange={e => setNewSubjectName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSubject()} placeholder="Nome..." className="flex-1 text-xs border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500" />
+                                                <button onClick={addSubject} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Icon name="check-circle-2" size={16}/></button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="p-2 space-y-1 overflow-y-auto">
+                                        {subjects.map(s => (
+                                            <button key={s.id} onClick={() => setActiveSubject(s.id)} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activeSubject === s.id ? "bg-indigo-50 text-indigo-700 font-bold" : "text-slate-600 hover:bg-slate-50"}`}>
+                                                {s.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="mt-auto p-4 border-t">
+                                        <button onClick={addNote} className="w-full py-2 bg-indigo-600 text-white rounded-lg flex items-center justify-center gap-2 text-sm font-bold shadow-sm hover:bg-indigo-700 transition-colors">
+                                            <Icon name="plus" size={16}/> Nova Nota
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="w-72 bg-slate-50 border-r border-slate-200 overflow-y-auto p-2 space-y-2">
+                                    {notes.filter(n => n.subject_id === activeSubject).map(n => (
+                                        <button key={n.id} onClick={() => setActiveNote(n)} className={`w-full text-left p-3 rounded-xl border transition-all ${activeNote?.id === n.id ? "bg-white border-indigo-200 shadow-sm" : "border-transparent hover:bg-slate-100"}`}>
+                                            <p className="font-bold text-slate-800 truncate">{n.title || 'Sem título'}</p>
+                                            <p className="text-xs text-slate-500 truncate mt-1">{n.content || 'Vazio...'}</p>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex-1 bg-white flex flex-col relative">
+                                    {activeNote ? (
+                                        <>
+                                            <div className="p-6 border-b flex justify-between items-center bg-white sticky top-0 z-10">
+                                                <h2 className="text-2xl font-bold text-slate-900 truncate">{activeNote.title}</h2>
+                                                <div className="flex items-center gap-3">
+                                                    <button onClick={() => setIsEditing(!isEditing)} className={`p-2 rounded-lg transition-colors ${isEditing ? "bg-indigo-100 text-indigo-700" : "hover:bg-slate-100 text-slate-600"}`}>
+                                                        <Icon name={isEditing ? "eye" : "edit-3"} size={20}/>
+                                                    </button>
+                                                    <div className="flex items-center gap-2 text-slate-400 ml-2">
+                                                        {saving ? <Icon name="refresh-cw" className="animate-spin" size={16}/> : <Icon name="check-circle-2" className="text-emerald-500" size={16}/>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 p-8 overflow-y-auto">
+                                                {isEditing ? (
+                                                    <textarea value={activeNote.content} onChange={e => handleNoteChange('content', e.target.value)} className="w-full h-full outline-none resize-none leading-relaxed text-slate-700 font-mono text-sm bg-transparent" placeholder="Escreva aqui..." />
+                                                ) : (
+                                                    <div className="markdown-body prose prose-slate max-w-none">
+                                                        <Markdown content={activeNote.content || '*Nenhum conteúdo ainda.*'} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex-1 flex flex-col items-center justify-center text-slate-300"><Icon name="file-text" size={64} className="mb-4 opacity-20"/><p>Selecione uma nota</p></div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* Outras views */}
+                        {view === 'digitization' && <DigitizationPage onSave={refreshData} activeSubject={activeSubject} subjects={subjects} />}
+                        {view === 'chat' && <ChatPage notes={notes} subjects={subjects} activeSubject={activeSubject} chatSessions={chatSessions} activeSessionId={activeChatSession} setActiveSessionId={setActiveChatSession} onRefresh={refreshData} />}
+                        {view === 'questions' && <ChatPage notes={notes} subjects={subjects} activeSubject={activeSubject} chatSessions={exerciseSessions} activeSessionId={activeExerciseSession} setActiveSessionId={setActiveExerciseSession} onRefresh={refreshData} type="exercise" />}
+                        {view === 'flashcards' && <FlashcardsPage notes={notes} flashcards={flashcards} onRefresh={refreshData} />}
+                        {view === 'review' && <ReviewPage flashcards={flashcards} onRefresh={refreshData} />}
+                        {view === 'archive' && <ArchivePage files={files} onRefresh={refreshData} />}
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
